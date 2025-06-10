@@ -8,6 +8,7 @@ dependencies = [
     "pyqt5>=5.15.9",
     "pyqt5-tools>=5.15.9.3.3",
     "mysql-connector-python>=8.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [dependency-groups]

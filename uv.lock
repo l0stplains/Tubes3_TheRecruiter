@@ -316,6 +316,8 @@ dependencies = [
     { name = "mysql-connector-python", version = "9.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pyqt5" },
     { name = "pyqt5-tools" },
+    { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "python-dotenv", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
 ]
 
 [package.metadata]
@@ -323,6 +325,7 @@ requires-dist = [
     { name = "mysql-connector-python", specifier = ">=8.0.0" },
     { name = "pyqt5", specifier = ">=5.15.9" },
     { name = "pyqt5-tools", specifier = ">=5.15.9.3.3" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
 ]
 
 [package.metadata.requires-dev]

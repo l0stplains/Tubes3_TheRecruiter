@@ -6,11 +6,11 @@ COLLATE utf8mb4_unicode_ci;
 USE ats_system;
 
 -- Create users
-CREATE USER IF NOT EXISTS 'gongyoo'@'%' IDENTIFIED BY 'roulette';
-CREATE USER IF NOT EXISTS 'gongyoo'@'localhost' IDENTIFIED BY 'roulette';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 
-GRANT ALL PRIVILEGES ON ats_system.* TO 'gongyoo'@'%';
-GRANT ALL PRIVILEGES ON ats_system.* TO 'gongyoo'@'localhost';
+GRANT ALL PRIVILEGES ON ats_system.* TO '${DB_USER}'@'%';
+GRANT ALL PRIVILEGES ON ats_system.* TO '${DB_USER}'@'localhost';
 
 FLUSH PRIVILEGES;
 
