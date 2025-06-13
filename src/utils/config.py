@@ -1,38 +1,53 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+from typing import Dict, Any, Optional
+
+try:
+    from dotenv import load_dotenv
+except ImportError as e:
+    print(f"[-] Error importing dotenv: {e}")
+    print("[*] Install with: pip install python-dotenv")
+    raise
 
 class DatabaseConfig:
-    def __init__(self): # load env
-        env_file = self._find_env_file()
-        if env_file:
-            load_dotenv(env_file)
-        
-        # Database configuration
-        self.host = os.getenv('DB_HOST', 'localhost')
-        self.port = int(os.getenv('DB_PORT', 3306))
-        self.database = os.getenv('DB_NAME', 'ats_system')
-        self.user = os.getenv('DB_USER', 'root')
-        self.password = os.getenv('DB_PASSWORD', '')
+    def __init__(self) -> None:
+        try:
+            env_file = self._find_env_file()
+            if env_file:
+                load_dotenv(env_file)
+        except Exception as e:
+            print(f"[-] Error loading .env file: {e}")
+            
+        try:
+            self.host: str = os.getenv('DB_HOST', 'localhost')
+            self.port: int = int(os.getenv('DB_PORT', '3306'))
+            self.database: str = os.getenv('DB_NAME', 'ats_system')
+            self.user: str = os.getenv('DB_USER', 'root')
+            self.password: str = os.getenv('DB_PASSWORD', '')
+        except ValueError as e:
+            raise ValueError(f"Invalid database configuration: {e}")
         
         if not all([self.host, self.database, self.user]):
             raise ValueError("Missing required database configuration")
     
-    def _find_env_file(self):
-        current_dir = Path(__file__).parent
-        
-        env_file = current_dir / '.env'
-        if env_file.exists():
-            return env_file
-        
-        for parent in current_dir.parents:
-            env_file = parent / '.env'
+    def _find_env_file(self) -> Optional[Path]:
+        try:
+            current_dir = Path(__file__).parent
+            
+            env_file = current_dir / '.env'
             if env_file.exists():
                 return env_file
+            
+            for parent in current_dir.parents:
+                env_file = parent / '.env'
+                if env_file.exists():
+                    return env_file
+        except Exception:
+            pass
         
         return None
     
-    def get_connection_params(self):
+    def get_connection_params(self) -> Dict[str, Any]:
         return {
             'host': self.host,
             'port': self.port,
@@ -41,9 +56,9 @@ class DatabaseConfig:
             'password': self.password
         }
 
-_config = None
+_config: Optional[DatabaseConfig] = None
 
-def get_db_config():
+def get_db_config() -> DatabaseConfig:
     global _config
     if _config is None:
         _config = DatabaseConfig()

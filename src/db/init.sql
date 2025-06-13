@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS ApplicantProfile (
     date_of_birth DATE DEFAULT NULL,
     address VARCHAR(255) DEFAULT NULL,
     phone_number VARCHAR(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ApplicationDetail table  
 CREATE TABLE IF NOT EXISTS ApplicationDetail (
@@ -30,8 +30,13 @@ CREATE TABLE IF NOT EXISTS ApplicationDetail (
     applicant_id INT NOT NULL,
     application_role VARCHAR(100) DEFAULT NULL,
     cv_path TEXT NOT NULL,
-    FOREIGN KEY (applicant_id) REFERENCES ApplicantProfile(applicant_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    
+    CONSTRAINT fk_applicant_profile 
+        FOREIGN KEY (applicant_id) 
+        REFERENCES ApplicantProfile(applicant_id) 
+        ON DELETE CASCADE 
+        ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SHOW TABLES;
 DESCRIBE ApplicantProfile;
