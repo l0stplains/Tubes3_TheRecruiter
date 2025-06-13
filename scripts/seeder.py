@@ -86,9 +86,13 @@ class DatabaseSeeder:
         address = self.fake.address().replace('\n', ', ')
         return address[:255]
 
-    def extract_role_from_pdf(self, pdf_path: str) -> str:
+    def extract_role_from_pdf(self, pdf_full_path: str) -> str:
         try:
-            doc = fitz.open(pdf_path)
+            if not os.path.exists(pdf_full_path):
+                print(f"[-] PDF file not found: {pdf_full_path}")
+                return "Unknown Role"
+            
+            doc = fitz.open(pdf_full_path)
             if len(doc) > 0:
                 page = doc[0]
                 text = page.get_text()
@@ -101,20 +105,39 @@ class DatabaseSeeder:
                     return first_line if first_line else "Unknown Role"
             doc.close()
             return "Unknown Role"
+            
         except Exception as e:
-            print(f"[-] Error reading PDF {pdf_path}: {e}")
+            print(f"[-] Error reading PDF {pdf_full_path}: {e}")
             return "Unknown Role"
 
-    def get_pdf_files(self) -> List[str]:
+    def get_pdf_files(self) -> List[tuple]:
         try:
             pdf_files = []
-            if os.path.exists(self.data_folder):
-                for file in os.listdir(self.data_folder):
+            if not os.path.exists(self.data_folder):
+                print(f"[-] Data folder not found: {self.data_folder}")
+                return []
+            
+            print(f"[*] Searching for PDF files in: {self.data_folder}")
+            
+            for root, dirs, files in os.walk(self.data_folder):
+                for file in files:
                     if file.lower().endswith('.pdf'):
-                        pdf_files.append(file)
+                        full_path = os.path.join(root, file)
+                        pdf_files.append((file, full_path))
+                        
+            print(f"[*] Found {len(pdf_files)} PDF files across all subdirectories")
+            
+            if pdf_files:
+                print("[*] Sample PDF files found:")
+                for i, (filename, _) in enumerate(pdf_files[:5]):
+                    print(f"    {i+1}. {filename}")
+                if len(pdf_files) > 5:
+                    print(f"    ... and {len(pdf_files) - 5} more files")
+            
             return pdf_files
+            
         except Exception as e:
-            print(f"[-] Error reading data folder: {e}")
+            print(f"[-] Error searching for PDF files: {e}")
             return []
 
     def get_applicant_ids(self) -> List[int]:
@@ -235,11 +258,11 @@ class DatabaseSeeder:
                 num_applications = random.randint(1, 3)
                 selected_pdfs = random.sample(pdf_files, min(num_applications, len(pdf_files)))
                 
-                for pdf_file in selected_pdfs:
-                    pdf_path = os.path.join(self.data_folder, pdf_file)
-                    role = self.extract_role_from_pdf(pdf_path)
+                for filename, full_path in selected_pdfs:
+                    role = self.extract_role_from_pdf(full_path)
                     
-                    application_data = (applicant_id, role, pdf_file)
+                    # Store only filename in database
+                    application_data = (applicant_id, role, filename)
                     cursor.execute(query, application_data)
                     inserted_count += 1
                     
@@ -321,11 +344,9 @@ class DatabaseSeeder:
         except Error as e:
             print(f"[-] Error verifying application data: {e}")
 
-
-
 def main() -> None:
-    print("DATABASE SEEDER FOR ATS SYSTEM")
-    print("="*50)
+    print("Hewwo :3")
+    print("="*10)
     
     try:
         seeder = DatabaseSeeder()
