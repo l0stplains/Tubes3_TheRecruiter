@@ -10,6 +10,7 @@ dependencies = [
     "mysql-connector-python>=8.0.0",
     "python-dotenv>=1.0.0",
     "pymupdf>=1.23",
+    "faker>=18.0.0",
 ]
 
 [dependency-groups]

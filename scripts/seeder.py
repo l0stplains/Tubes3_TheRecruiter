@@ -1,8 +1,7 @@
 import sys
 import os
-from datetime import datetime, timedelta
-import random
-from typing import Optional, List, Tuple, Dict, Any
+from datetime import datetime
+from typing import Optional, Dict, Any
 
 # relative
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +22,13 @@ except ImportError as e:
     sys.exit(1)
 
 try:
+    from faker import Faker
+except ImportError as e:
+    print(f"[-] Error importing faker: {e}")
+    print("[*] Install with: pip install faker")
+    sys.exit(1)
+
+try:
     from config import get_db_config
 except ImportError:
     print("[-] Error: Cannot find config module")
@@ -40,42 +46,7 @@ class DatabaseSeeder:
             sys.exit(1)
             
         self.connection: Optional[mysql.connector.MySQLConnection] = None
-
-        self.first_names: List[str] = [
-            'Andi', 'Budi', 'Citra', 'Dian', 'Eko', 'Fitri', 'Gina', 'Hadi', 'Indri', 'Joko',
-            'Kartika', 'Linda', 'Maya', 'Nina', 'Oka', 'Putri', 'Rina', 'Sari', 'Toni', 'Uci',
-            'Vina', 'Wati', 'Yani', 'Zara', 'Agus', 'Bayu', 'Cindy', 'Doni', 'Erni', 'Fajar',
-            'Gita', 'Hana', 'Ivan', 'Juli', 'Kiki', 'Lala', 'Mira', 'Nita', 'Ocha', 'Popi',
-            'Qori', 'Reza', 'Sita', 'Tari', 'Ulfa', 'Vera', 'Wina', 'Yudi', 'Zaki', 'Arif',
-            'Bella', 'Cahya', 'Dewi', 'Elsa', 'Fani', 'Gani', 'Hesti', 'Ilham', 'Jeni', 'Kris',
-            'Leni', 'Mila', 'Novi', 'Oki', 'Pira', 'Ratna', 'Sinta', 'Tika', 'Umi', 'Vika',
-            'Widi', 'Yesi', 'Zahra', 'Ahmad', 'Bela', 'Cici', 'Dinda', 'Eva', 'Fadli', 'Galih',
-            'Heru', 'Irma', 'Jihan', 'Karina', 'Laras', 'Monica', 'Nanda', 'Oscar', 'Pingkan',
-            'Randi', 'Sofia', 'Tina', 'Ully', 'Vero', 'Wulan', 'Yusuf', 'Zidan', 'Arie', 'Bunga'
-        ]
-        
-        self.last_names: List[str] = [
-            'Wijaya', 'Santoso', 'Pratama', 'Susanto', 'Kurniawan', 'Sari', 'Putri', 'Handoko',
-            'Lestari', 'Utomo', 'Wibowo', 'Hakim', 'Setiawan', 'Rahayu', 'Indah', 'Permana',
-            'Anggraini', 'Nugroho', 'Maharani', 'Wardani', 'Suryani', 'Dewi', 'Purnama', 'Safitri',
-            'Ramadhan', 'Sukma', 'Kusuma', 'Aditya', 'Cahaya', 'Melati', 'Pertiwi', 'Sartika',
-            'Budiman', 'Atmaja', 'Kartini', 'Buana', 'Ananda', 'Saputra', 'Saputri', 'Manurung',
-            'Sitompul', 'Panjaitan', 'Hasibuan', 'Simanjuntak', 'Lubis', 'Napitupulu', 'Siregar',
-            'Johnson', 'Smith', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis'
-        ]
-        
-        self.addresses: List[str] = [
-            'Jl. Merdeka No. 123, Jakarta',
-            'Jl. Sudirman No. 456, Bandung',
-            'Jl. Diponegoro No. 789, Surabaya',
-            'Jl. Ahmad Yani No. 321, Medan',
-            'Jl. Imam Bonjol No. 654, Semarang',
-            'Jl. Gajah Mada No. 987, Yogyakarta',
-            'Jl. Kartini No. 147, Malang',
-            'Jl. Pemuda No. 258, Solo',
-            'Jl. Veteran No. 369, Palembang',
-            'Jl. Pahlawan No. 741, Makassar'
-        ]
+        self.fake = Faker('en_US')
 
     def connect(self) -> bool:
         try:
@@ -100,18 +71,17 @@ class DatabaseSeeder:
             print(f"[-] Error closing connection: {e}")
 
     def generate_phone_number(self) -> str:
-        prefixes = ['0812', '0813', '0821', '0822', '0823', '0851', '0852', '0853']
-        prefix = random.choice(prefixes)
-        number = ''.join([str(random.randint(0, 9)) for _ in range(8)])
-        return f"{prefix}-{number[:4]}-{number[4:]}"
+        area = self.fake.random_int(min=100, max=999)
+        first = self.fake.random_int(min=100, max=999)
+        last = self.fake.random_int(min=1000, max=9999)
+        return f"+1-{area}-{first}-{last}"
 
     def generate_birth_date(self) -> datetime:
-        start_date = datetime(1980, 1, 1)
-        end_date = datetime(2000, 12, 31)
-        random_date = start_date + timedelta(
-            days=random.randint(0, (end_date - start_date).days)
-        )
-        return random_date.date()
+        return self.fake.date_of_birth(minimum_age=22, maximum_age=60)
+
+    def generate_address(self) -> str:
+        address = self.fake.address().replace('\n', ', ')
+        return address[:255]
 
     def clear_existing_data(self) -> bool:
         try:
@@ -140,34 +110,28 @@ class DatabaseSeeder:
                 return False
                 
             cursor = self.connection.cursor()
-            applicants: List[Tuple[str, str, datetime, str, str]] = []
-            used_names = set()
             
-            for i in range(count):
-                while True:
-                    first_name = random.choice(self.first_names)
-                    last_name = random.choice(self.last_names)
-                    full_name = f"{first_name} {last_name}"
-                    
-                    if full_name not in used_names:
-                        used_names.add(full_name)
-                        break
-                
-                applicant = (
-                    first_name,
-                    last_name,
-                    self.generate_birth_date(),
-                    random.choice(self.addresses),
-                    self.generate_phone_number()
-                )
-                applicants.append(applicant)
+            print(f"[*] Generating and inserting {count} realistic applicant profiles...")
             
             query = """
             INSERT INTO ApplicantProfile (first_name, last_name, date_of_birth, address, phone_number)
             VALUES (%s, %s, %s, %s, %s)
             """
             
-            cursor.executemany(query, applicants)
+            for i in range(count):
+                first_name = self.fake.first_name()[:50]
+                last_name = self.fake.last_name()[:50]
+                birth_date = self.generate_birth_date()
+                address = self.generate_address()
+                phone = self.generate_phone_number()
+                
+                applicant_data = (first_name, last_name, birth_date, address, phone)
+                cursor.execute(query, applicant_data)
+                
+                if (i + 1) % 50 == 0:
+                    self.connection.commit()
+                    print(f"[*] Inserted {i + 1}/{count} profiles...")
+            
             self.connection.commit()
             cursor.close()
             
@@ -216,9 +180,10 @@ class DatabaseSeeder:
         except Exception as e:
             print(f"[-] Unexpected error verifying data: {e}")
 
+
 def main() -> None:
-    print("DATABASE SEEDER FOR ATS SYSTEM")
-    print("="*50)
+    print("Hewwo :3")
+    print("="*10)
     
     try:
         seeder = DatabaseSeeder()
@@ -226,11 +191,11 @@ def main() -> None:
         if not seeder.connect():
             print("[-] Failed to connect to database. Please check your configuration.")
             return
-
+        
         clear_data = input("Do you want to clear existing ApplicantProfile data? (y/N): ").lower().strip()
         if clear_data == 'y':
             seeder.clear_existing_data()
-
+        
         try:
             count_input = input("Enter number of applicant profiles to create (default: 200): ").strip()
             count = int(count_input) if count_input else 200
