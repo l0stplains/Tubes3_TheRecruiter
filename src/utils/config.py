@@ -24,6 +24,9 @@ class DatabaseConfig:
             self.database: str = os.getenv('DB_NAME', 'ats_system')
             self.user: str = os.getenv('DB_USER', 'root')
             self.password: str = os.getenv('DB_PASSWORD', '')
+
+            self.encryption_password: Optional[str] = os.getenv('ENCRYPTION_PASSWORD')
+            
         except ValueError as e:
             raise ValueError(f"Invalid database configuration: {e}")
         
@@ -55,6 +58,12 @@ class DatabaseConfig:
             'user': self.user,
             'password': self.password
         }
+    
+    def get_encryption_password(self) -> Optional[str]:
+        return self.encryption_password
+    
+    def has_encryption_password(self) -> bool:
+        return self.encryption_password is not None and len(self.encryption_password.strip()) > 0
 
 _config: Optional[DatabaseConfig] = None
 
@@ -62,4 +71,9 @@ def get_db_config() -> DatabaseConfig:
     global _config
     if _config is None:
         _config = DatabaseConfig()
+    print(f"[+] Loaded database config: host={_config.host}, database={_config.database}, user={_config.user}")
+    if _config.has_encryption_password():
+        print(f"[+] Encryption password configured")
+    else:
+        print(f"[*] No encryption password configured")
     return _config
