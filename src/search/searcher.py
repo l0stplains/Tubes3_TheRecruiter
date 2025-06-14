@@ -1,68 +1,72 @@
-from typing import List, Dict, Union
+from typing import (
+    List, Dict, Union, Tuple
+)
+from re import compile as rx, escape
 from .search_abc import StringSearchAlgorithm
 from .multisearch_protocol import MultiPatternSearchAlgorithm
+from .fuzzysearch_protocol import FuzzySearchAlgorithm
 
 class KeywordSearcher:
     """
-    Perform single- or multi-pattern searches with configurable algorithms.
+    Dispatch to exact‑match or fuzzy‑match based on the algorithm instance.
 
-    Attributes:
-        algorithm: Either a StringSearchAlgorithm (single-pattern)
-                   or a MultiPatternSearchAlgorithm (multi-pattern).
-        case_sensitive: If False, searches are case-insensitive.
-        whole_word: If True, only whole-word matches are returned.
+    Args:
+      algorithm: 
+        - exact-match: StringSearchAlgorithm or MultiPatternSearchAlgorithm  
+        - fuzzy-match: FuzzySearchAlgorithm  
+      case_sensitive: If False, lower‑cases both text and patterns.  
+      whole_word: If True, applies word‑boundary filtering (exact only).
     """
     def __init__(
         self,
-        algorithm: Union[StringSearchAlgorithm, MultiPatternSearchAlgorithm],
+        algorithm: Union[
+            StringSearchAlgorithm,
+            MultiPatternSearchAlgorithm,
+            FuzzySearchAlgorithm
+        ],
         case_sensitive: bool = False,
         whole_word: bool = False
     ):
-        self.algorithm = algorithm
+        self.algorithm     = algorithm
         self.case_sensitive = case_sensitive
-        self.whole_word = whole_word
+        self.whole_word     = whole_word
 
     def search(
-        self,
-        text: str,
-        keywords: List[str]
-    ) -> Dict[str, List[int]]:
-        """
-        Search for multiple keywords in `text`.
-
-        Uses `search_multi` if the algorithm supports it, else loops over `search`.
-        """
-        processed = text if self.case_sensitive else text.lower()
-        # Multi-pattern path
-        if isinstance(self.algorithm, MultiPatternSearchAlgorithm):
-            raw = self.algorithm.search_multi(
-                processed,
-                [kw if self.case_sensitive else kw.lower() for kw in keywords]
-            )
-        else:
-            raw = {
-                kw: self.algorithm.search(
-                    processed,
-                    kw if self.case_sensitive else kw.lower()
-                )
+            self,
+            text: str,
+            keywords: List[str]
+        ) -> Dict[str, Union[List[int], List[Tuple[int,int]]]]:
+            # normalize case once
+            proc_text = text if self.case_sensitive else text.lower()
+            proc_keys = [
+                kw if self.case_sensitive else kw.lower()
                 for kw in keywords
+            ]
+
+            norm_to_orig: Dict[str, str] = {
+                nk: orig for nk, orig in zip(proc_keys, keywords)
             }
 
-        # Whole-word filtering
-        results: Dict[str, List[int]] = {}
-        for kw, idxs in raw.items():
-            if self.whole_word:
-                filtered = []
-                term = kw if self.case_sensitive else kw.lower()
-                for i in idxs:
-                    start_ok = i == 0 or not processed[i-1].isalnum()
-                    end_i = i + len(term)
-                    end_ok = end_i == len(processed) or not processed[end_i].isalnum()
-                    if start_ok and end_ok:
-                        filtered.append(i)
-                results[kw] = filtered
+            if isinstance(self.algorithm, FuzzySearchAlgorithm):
+                raw = self.algorithm.search_fuzzy(proc_text, proc_keys)
             else:
-                results[kw] = idxs
+                if isinstance(self.algorithm, MultiPatternSearchAlgorithm):
+                    raw = self.algorithm.search_multi(proc_text, proc_keys)
+                else:
+                    raw = {
+                        nk: self.algorithm.search(proc_text, nk)
+                        for nk in proc_keys
+                    }
 
-        return results
+                if self.whole_word:
+                    filtered: Dict[str, List[int]] = {nk: [] for nk in proc_keys}
+                    # build a combined word‑boundary regex
+                    pattern = rx(r'\b(' + '|'.join(map(escape, proc_keys)) + r')\b')
+                    for m in pattern.finditer(proc_text):
+                        filtered[m.group(1)].append(m.start())
+                    raw = filtered
 
+            return {
+                norm_to_orig.get(nk, nk): positions
+                for nk, positions in raw.items()
+            }
