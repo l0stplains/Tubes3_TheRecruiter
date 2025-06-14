@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>442</width>
-    <height>360</height>
+    <width>463</width>
+    <height>361</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -131,8 +131,8 @@ QScrollBar::sub-page:vertical {
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>414</width>
-              <height>927</height>
+              <width>435</width>
+              <height>631</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -238,7 +238,7 @@ QScrollBar::sub-page:vertical {
                  <property name="frameShape">
                   <enum>QFrame::Box</enum>
                  </property>
-                 <layout class="QVBoxLayout" name="summaryLayout">
+                 <layout class="QVBoxLayout" name="verticalLayout_5">
                   <item>
                    <widget class="QLabel" name="summaryTitle">
                     <property name="sizePolicy">
@@ -260,20 +260,7 @@ QScrollBar::sub-page:vertical {
                    </widget>
                   </item>
                   <item>
-                   <widget class="QLabel" name="summaryDesc">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>This document provides a comprehensive analysis of document processing techniques and their applications in modern information systems.</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <widget class="QWidget" name="summaryDesc" native="true"/>
                   </item>
                  </layout>
                 </widget>
@@ -316,7 +303,7 @@ QScrollBar::sub-page:vertical {
                  </property>
                  <layout class="QVBoxLayout" name="findingsLayout">
                   <item>
-                   <widget class="QLabel" name="findingsTitle">
+                   <widget class="QLabel" name="skillTitle">
                     <property name="font">
                      <font>
                       <pointsize>14</pointsize>
@@ -330,16 +317,7 @@ QScrollBar::sub-page:vertical {
                    </widget>
                   </item>
                   <item>
-                   <widget class="QLabel" name="findingsDesc">
-                    <property name="text">
-                     <string>1. Vector-based search shows 15% improvement
-2. Hybrid algorithms perform best for mixed content
-3. Processing time reduced by 30%</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <widget class="QWidget" name="skillDesc" native="true"/>
                   </item>
                  </layout>
                 </widget>
@@ -380,9 +358,9 @@ QScrollBar::sub-page:vertical {
                  <property name="frameShape">
                   <enum>QFrame::Box</enum>
                  </property>
-                 <layout class="QVBoxLayout" name="methodLayout">
+                 <layout class="QVBoxLayout" name="verticalLayout_7">
                   <item>
-                   <widget class="QLabel" name="methodTitle">
+                   <widget class="QLabel" name="jobTitle">
                     <property name="font">
                      <font>
                       <pointsize>14</pointsize>
@@ -396,14 +374,7 @@ QScrollBar::sub-page:vertical {
                    </widget>
                   </item>
                   <item>
-                   <widget class="QLabel" name="methodDesc">
-                    <property name="text">
-                     <string>The study employed a combination of quantitative and qualitative methods to evaluate different search algorithms across multiple datasets.</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <widget class="QWidget" name="jobDesc" native="true"/>
                   </item>
                  </layout>
                 </widget>
@@ -444,7 +415,7 @@ QScrollBar::sub-page:vertical {
                  <property name="frameShape">
                   <enum>QFrame::Box</enum>
                  </property>
-                 <layout class="QVBoxLayout" name="methodLayout_3">
+                 <layout class="QVBoxLayout" name="verticalLayout_6">
                   <item>
                    <widget class="QLabel" name="methodTitle_3">
                     <property name="font">
@@ -460,14 +431,7 @@ QScrollBar::sub-page:vertical {
                    </widget>
                   </item>
                   <item>
-                   <widget class="QLabel" name="methodDesc_3">
-                    <property name="text">
-                     <string>The study employed a combination of quantitative and qualitative methods to evaluate different search algorithms across multiple datasets.</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <widget class="QWidget" name="educationDesc" native="true"/>
                   </item>
                  </layout>
                 </widget>

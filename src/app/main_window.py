@@ -8,6 +8,7 @@ from src.app.main_menu import MainMenuPage
 from src.app.search_page import SearchPage
 from src.app.cv_summary_page import CVSummaryPage
 from src.app.upload_page import UploadPage
+from src.app.cv_viewer_page import CVViewerPage
 
 
 class MainWindow(QMainWindow):
@@ -23,20 +24,22 @@ class MainWindow(QMainWindow):
         # Initialize pages
         self.main_menu = MainMenuPage()
         self.search_page = SearchPage()
-        self.result_detail_page = CVSummaryPage()
+        self.cv_summary_page = CVSummaryPage()
+        self.cv_viewer_page = CVViewerPage()
         self.add_data_page = UploadPage()
         
         # Add pages to stacked widget
         self.stacked_widget.addWidget(self.main_menu)
         self.stacked_widget.addWidget(self.search_page)
-        self.stacked_widget.addWidget(self.result_detail_page)
+        self.stacked_widget.addWidget(self.cv_summary_page)
         self.stacked_widget.addWidget(self.add_data_page)
+        self.stacked_widget.addWidget(self.cv_viewer_page)
         
         # Connect navigation signals
         self.setup_navigation()
         
         # Show main menu initially
-        self.stacked_widget.setCurrentWidget(self.search_page)
+        self.stacked_widget.setCurrentWidget(self.main_menu)
     
     def setup_navigation(self):
         # Main menu navigation
@@ -46,10 +49,12 @@ class MainWindow(QMainWindow):
 
         # Search page navigation
         self.search_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_menu))
-        self.search_page.result_selected.connect(lambda: self.stacked_widget.setCurrentWidget(self.result_detail_page))
+        self.search_page.result_selected.connect(lambda applicationID: (self.stacked_widget.setCurrentWidget(self.cv_summary_page), self.cv_summary_page.populateContent(applicationID)))
+        self.search_page.cv_selected.connect(lambda applicationID: (self.stacked_widget.setCurrentWidget(self.cv_viewer_page), self.cv_viewer_page.loadPDF(applicationID)))
         
         # Result detail navigation
-        self.result_detail_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.search_page))
+        self.cv_summary_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.search_page))
+        self.cv_viewer_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.search_page))
         
         # Add data navigatio
         self.add_data_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_menu))

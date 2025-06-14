@@ -7,7 +7,8 @@ import os
 import math
 
 class SearchPage(QWidget):
-    result_selected = pyqtSignal()
+    result_selected = pyqtSignal(str)
+    cv_selected = pyqtSignal(str)
     
     def __init__(self):
         super().__init__()
@@ -33,6 +34,7 @@ class SearchPage(QWidget):
             
             # Initially hide search summary
             self.searchSummary.hide()
+
     
     def perform_search(self):
         # Simulate search
@@ -52,15 +54,18 @@ class SearchPage(QWidget):
         
         # Add sample results
         sample_results = [
-            ("Document Analysis Report", "Comprehensive analysis\n of document processing techniques..."),
-            ("Search Algorithm Comparison", "Detailed comparison of \ndifferent search algorithms..."),
-            ("Data Mining Techniques", "Overview of modern data mining \nand extraction methods..."),
-            ("Information Retrieval Systems", "Study of information \nretrieval and ranking systems..."),
+            ("Document Analysis Report", "Comprehensive analysis\n of document proc\nessing techniques..."),
+            ("Search Algorithm Comparison", "Detailed comparison of \ndifferent search al\ngorithms..."),
+            ("Data Mining Techniques", "Overview of modern data mining \nand extracti\non methods..."),
+            ("Information Retrieval Systems", "Study of information \nretrieval and ran\nking systems..."),
         ]
         
+        # HELLLO REFKI ATO GHANA
+        # INI DISINI ASUMSINYA BAKAL DAPET APPLICATION ID YAH
+        # BUAT DAPETIN DATA UNTUK CV SUMMARY NYA. OKEH THANKS
         cards = []
         for title, desc in sample_results:
-            card = self.create_result_card(title, desc, "1")
+            card = self.create_result_card(title, desc, "1", "ubah ini ki")
             card.setMinimumWidth(100)
             card.setMaximumWidth(250)
             cards.append(card)
@@ -91,7 +96,7 @@ class SearchPage(QWidget):
         # Add stretch at the bottom
         self.results_layout.addStretch()
     
-    def create_result_card(self, title, description, matches):
+    def create_result_card(self, title, description, matches, applicationID):
         card = QFrame()
         card.setFrameStyle(QFrame.Box)
         card.setStyleSheet("""
@@ -162,7 +167,7 @@ class SearchPage(QWidget):
                 background-color: #636363;
             }
         """)
-        summary_btn.clicked.connect(lambda: self.result_selected.emit())
+        summary_btn.clicked.connect(lambda: self.result_selected.emit(applicationID))
         summary_btn.setCursor(Qt.PointingHandCursor)
         btn_layout.addWidget(summary_btn)
         
@@ -181,6 +186,7 @@ class SearchPage(QWidget):
             }
         """)
         view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.clicked.connect(lambda: self.cv_selected.emit(applicationID))
         btn_layout.addWidget(view_btn)
         
         layout.addLayout(btn_layout)
