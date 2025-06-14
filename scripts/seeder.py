@@ -24,17 +24,22 @@ except ImportError as e:
 
 try:
     from faker import Faker
-    import fitz
 except ImportError as e:
-    print(f"[-] Error importing faker or PyMuPDF: {e}")
-    print("[*] Install with: pip install faker pymupdf")
+    print(f"[-] Error importing faker: {e}")
+    print("[*] Install with: pip install faker")
     sys.exit(1)
+
+try:
+    from encrypt import encrypt, decrypt
+except ImportError:
+    print("[-] Warning: encrypt.py not found, encryption features disabled")
+    encrypt = None
+    decrypt = None
 
 try:
     from config import get_db_config
 except ImportError:
     print("[-] Error: Cannot find config module")
-    print(f"[*] Looking for config.py in: {db_dir}")
     sys.exit(1)
 
 class DatabaseSeeder:
@@ -49,10 +54,10 @@ class DatabaseSeeder:
         self.connection: Optional[mysql.connector.MySQLConnection] = None
         self.fake = Faker('en_US')
         self.data_folder = os.path.join(project_root, 'data')
+        self.encryption_key: Optional[bytes] = None
         
         if not os.path.exists(self.data_folder):
             os.makedirs(self.data_folder)
-            print(f"[*] Created data folder: {self.data_folder}")
 
     def connect(self) -> bool:
         try:
@@ -74,68 +79,72 @@ class DatabaseSeeder:
             print(f"[-] Error closing connection: {e}")
 
     def generate_phone_number(self) -> str:
-        area = self.fake.random_int(min=100, max=999)
-        first = self.fake.random_int(min=100, max=999)
-        last = self.fake.random_int(min=1000, max=9999)
-        return f"+1-{area}-{first}-{last}"
+        return self.fake.phone_number()
 
     def generate_birth_date(self) -> datetime:
-        return self.fake.date_of_birth(minimum_age=22, maximum_age=60)
+        return self.fake.date_of_birth(minimum_age=19, maximum_age=27)
 
     def generate_address(self) -> str:
-        address = self.fake.address().replace('\n', ', ')
-        return address[:255]
+        return self.fake.address().replace('\n', ', ')
 
-    def extract_role_from_pdf(self, pdf_full_path: str) -> str:
+    def generate_job_role(self) -> str:
+        return self.fake.job()
+
+    def set_encryption_key(self, key_string: str) -> bool:
         try:
-            if not os.path.exists(pdf_full_path):
-                print(f"[-] PDF file not found: {pdf_full_path}")
-                return "Unknown Role"
+            if encrypt is None:
+                print("[-] Encryption not available")
+                return False
             
-            doc = fitz.open(pdf_full_path)
-            if len(doc) > 0:
-                page = doc[0]
-                text = page.get_text()
-                lines = text.strip().split('\n')
-                if lines:
-                    first_line = lines[0].strip()
-                    if len(first_line) > 100:
-                        first_line = first_line[:100]
-                    doc.close()
-                    return first_line if first_line else "Unknown Role"
-            doc.close()
-            return "Unknown Role"
+            key_bytes = key_string.encode('utf-8')
+            if len(key_bytes) < 16:
+                key_bytes = key_bytes + b'\x00' * (16 - len(key_bytes))
+            elif len(key_bytes) > 16:
+                key_bytes = key_bytes[:16]
             
+            self.encryption_key = key_bytes
+            print(f"[+] Encryption key set successfully")
+            return True
         except Exception as e:
-            print(f"[-] Error reading PDF {pdf_full_path}: {e}")
-            return "Unknown Role"
+            print(f"[-] Error setting encryption key: {e}")
+            return False
 
-    def get_pdf_files(self) -> List[tuple]:
+    def encrypt_data(self, data: str) -> str:
+        try:
+            if self.encryption_key is None or encrypt is None:
+                return data
+            
+            encrypted_bytes = encrypt(self.encryption_key, data.encode('utf-8'))
+            return encrypted_bytes.hex()
+        except Exception as e:
+            print(f"[-] Error encrypting data: {e}")
+            return data
+
+    def decrypt_data(self, hex_data: str) -> str:
+        try:
+            if self.encryption_key is None or decrypt is None:
+                return hex_data
+            
+            encrypted_bytes = bytes.fromhex(hex_data)
+            decrypted_bytes = decrypt(self.encryption_key, encrypted_bytes)
+            return decrypted_bytes.decode('utf-8')
+        except Exception as e:
+            print(f"[-] Error decrypting data: {e}")
+            return hex_data
+
+    def get_pdf_files(self) -> List[str]:
         try:
             pdf_files = []
             if not os.path.exists(self.data_folder):
-                print(f"[-] Data folder not found: {self.data_folder}")
                 return []
-            
-            print(f"[*] Searching for PDF files in: {self.data_folder}")
             
             for root, dirs, files in os.walk(self.data_folder):
                 for file in files:
                     if file.lower().endswith('.pdf'):
-                        full_path = os.path.join(root, file)
-                        pdf_files.append((file, full_path))
-                        
-            print(f"[*] Found {len(pdf_files)} PDF files across all subdirectories")
-            
-            if pdf_files:
-                print("[*] Sample PDF files found:")
-                for i, (filename, _) in enumerate(pdf_files[:5]):
-                    print(f"    {i+1}. {filename}")
-                if len(pdf_files) > 5:
-                    print(f"    ... and {len(pdf_files) - 5} more files")
+                        relative_path = os.path.relpath(os.path.join(root, file), self.data_folder)
+                        pdf_files.append(relative_path)
             
             return pdf_files
-            
         except Exception as e:
             print(f"[-] Error searching for PDF files: {e}")
             return []
@@ -186,13 +195,18 @@ class DatabaseSeeder:
             print(f"[-] Error clearing application data: {e}")
             return False
 
-    def seed_applicant_profiles(self, count: int = 200) -> bool:
+    def seed_applicant_profiles(self, count: int = 200, use_encryption: bool = False) -> bool:
         try:
             if not self.connection:
                 return False
+            
+            if use_encryption and self.encryption_key is None:
+                print("[-] Encryption requested but no key set")
+                return False
                 
             cursor = self.connection.cursor()
-            print(f"[*] Generating and inserting {count} realistic applicant profiles...")
+            encryption_status = "with encryption" if use_encryption else "without encryption"
+            print(f"[*] Generating and inserting {count} applicant profiles {encryption_status}...")
             
             query = """
             INSERT INTO ApplicantProfile (first_name, last_name, date_of_birth, address, phone_number)
@@ -200,13 +214,22 @@ class DatabaseSeeder:
             """
             
             for i in range(count):
-                first_name = self.fake.first_name()[:50]
-                last_name = self.fake.last_name()[:50]
+                first_name = self.fake.first_name()
+                last_name = self.fake.last_name()
                 birth_date = self.generate_birth_date()
                 address = self.generate_address()
                 phone = self.generate_phone_number()
                 
-                applicant_data = (first_name, last_name, birth_date, address, phone)
+                if use_encryption:
+                    first_name = self.encrypt_data(first_name)
+                    last_name = self.encrypt_data(last_name)
+                    birth_date_encrypted = self.encrypt_data(str(birth_date))
+                    address = self.encrypt_data(address)
+                    phone = self.encrypt_data(phone)
+                    
+                    applicant_data = (first_name, last_name, birth_date_encrypted, address, phone)
+                else:
+                    applicant_data = (first_name, last_name, birth_date, address, phone)
                 cursor.execute(query, applicant_data)
                 
                 if (i + 1) % 50 == 0:
@@ -215,7 +238,7 @@ class DatabaseSeeder:
             
             self.connection.commit()
             cursor.close()
-            print(f"[+] Successfully seeded {count} applicant profiles")
+            print(f"[+] Successfully seeded {count} applicant profiles {encryption_status}")
             return True
             
         except Error as e:
@@ -243,9 +266,6 @@ class DatabaseSeeder:
                 print("[-] No applicants found in database")
                 return False
             
-            print(f"[*] Found {len(pdf_files)} PDF files")
-            print(f"[*] Found {len(applicant_ids)} applicants")
-            
             cursor = self.connection.cursor()
             query = """
             INSERT INTO ApplicationDetail (applicant_id, application_role, cv_path)
@@ -258,11 +278,10 @@ class DatabaseSeeder:
                 num_applications = random.randint(1, 3)
                 selected_pdfs = random.sample(pdf_files, min(num_applications, len(pdf_files)))
                 
-                for filename, full_path in selected_pdfs:
-                    role = self.extract_role_from_pdf(full_path)
+                for pdf_file in selected_pdfs:
+                    role = self.generate_job_role()
                     
-                    # Store only filename in database
-                    application_data = (applicant_id, role, filename)
+                    application_data = (applicant_id, role, pdf_file)
                     cursor.execute(query, application_data)
                     inserted_count += 1
                     
@@ -284,7 +303,7 @@ class DatabaseSeeder:
                     pass
             return False
 
-    def verify_seeded_data(self) -> None:
+    def verify_seeded_data(self, show_decrypted: bool = False) -> None:
         try:
             if not self.connection:
                 return
@@ -303,10 +322,23 @@ class DatabaseSeeder:
             print(f"\n[+] Sample data (first 5 records):")
             
             for record in sample_data:
-                print(f"    ID: {record['applicant_id']}, "
-                      f"Name: {record['first_name']} {record['last_name']}, "
-                      f"DOB: {record['date_of_birth']}, "
-                      f"Phone: {record['phone_number']}")
+                if show_decrypted and self.encryption_key:
+                    first_name = self.decrypt_data(record['first_name'])
+                    last_name = self.decrypt_data(record['last_name'])
+                    birth_date = self.decrypt_data(str(record['date_of_birth']))
+                    address = self.decrypt_data(record['address'])
+                    phone = self.decrypt_data(record['phone_number'])
+                    print(f"    ID: {record['applicant_id']}, "
+                          f"Name: {first_name} {last_name} (decrypted), "
+                          f"DOB: {birth_date} (decrypted), "
+                          f"Address: {address[:30]}... (decrypted), "
+                          f"Phone: {phone} (decrypted)")
+                else:
+                    print(f"    ID: {record['applicant_id']}, "
+                          f"Name: {record['first_name'][:20]}..., "
+                          f"DOB: {str(record['date_of_birth'])[:20]}..., "
+                          f"Address: {record['address'][:20]}..., "
+                          f"Phone: {record['phone_number'][:20]}...")
                       
         except Error as e:
             print(f"[-] Error verifying data: {e}")
@@ -338,7 +370,7 @@ class DatabaseSeeder:
             for record in sample_data:
                 print(f"    ID: {record['detail_id']}, "
                       f"Applicant: {record['first_name']} {record['last_name']}, "
-                      f"Role: {record['application_role'][:50]}..., "
+                      f"Role: {record['application_role']}, "
                       f"CV: {record['cv_path']}")
                       
         except Error as e:
@@ -352,7 +384,7 @@ def main() -> None:
         seeder = DatabaseSeeder()
         
         if not seeder.connect():
-            print("[-] Failed to connect to database. Please check your configuration.")
+            print("[-] Failed to connect to database")
             return
         
         print("\nSelect seeding option:")
@@ -364,6 +396,14 @@ def main() -> None:
         choice = input("\nEnter your choice (1-4): ").strip()
         
         if choice == '1':
+            use_encryption = False
+            if encrypt is not None:
+                encryption_choice = input("Use encryption for sensitive data? (y/N): ").lower().strip()
+                if encryption_choice == 'y':
+                    key_input = input("Enter encryption key: ").strip()
+                    if key_input and seeder.set_encryption_key(key_input):
+                        use_encryption = True
+            
             clear_data = input("Clear existing ApplicantProfile data? (y/N): ").lower().strip()
             if clear_data == 'y':
                 seeder.clear_existing_data()
@@ -375,11 +415,14 @@ def main() -> None:
                     count = 200
             except ValueError:
                 count = 200
-                print("[*] Invalid input, using default count of 200")
             
-            print(f"\n[*] Creating {count} applicant profiles...")
-            if seeder.seed_applicant_profiles(count):
-                seeder.verify_seeded_data()
+            if seeder.seed_applicant_profiles(count, use_encryption):
+                show_decrypted = False
+                if use_encryption:
+                    decrypt_choice = input("Show decrypted data in verification? (y/N): ").lower().strip()
+                    show_decrypted = decrypt_choice == 'y'
+                
+                seeder.verify_seeded_data(show_decrypted)
                 print(f"\n[+] Applicant seeding completed successfully!")
                 
         elif choice == '2':
@@ -387,12 +430,19 @@ def main() -> None:
             if clear_data == 'y':
                 seeder.clear_existing_application_data()
             
-            print(f"\n[*] Creating application details from PDF files...")
             if seeder.seed_application_details():
                 seeder.verify_application_data()
                 print(f"\n[+] Application detail seeding completed successfully!")
                 
         elif choice == '3':
+            use_encryption = False
+            if encrypt is not None:
+                encryption_choice = input("Use encryption for sensitive data? (y/N): ").lower().strip()
+                if encryption_choice == 'y':
+                    key_input = input("Enter encryption key: ").strip()
+                    if key_input and seeder.set_encryption_key(key_input):
+                        use_encryption = True
+            
             clear_data = input("Clear all existing data? (y/N): ").lower().strip()
             if clear_data == 'y':
                 seeder.clear_existing_application_data()
@@ -405,13 +455,15 @@ def main() -> None:
                     count = 200
             except ValueError:
                 count = 200
-                print("[*] Invalid input, using default count of 200")
             
-            print(f"\n[*] Step 1: Creating {count} applicant profiles...")
-            if seeder.seed_applicant_profiles(count):
-                seeder.verify_seeded_data()
+            if seeder.seed_applicant_profiles(count, use_encryption):
+                show_decrypted = False
+                if use_encryption:
+                    decrypt_choice = input("Show decrypted data in verification? (y/N): ").lower().strip()
+                    show_decrypted = decrypt_choice == 'y'
                 
-                print(f"\n[*] Step 2: Creating application details from PDF files...")
+                seeder.verify_seeded_data(show_decrypted)
+                
                 if seeder.seed_application_details():
                     seeder.verify_application_data()
                     print(f"\n[+] Complete seeding process finished successfully!")
@@ -426,7 +478,7 @@ def main() -> None:
             print("Invalid choice. Please select 1-4.")
         
     except KeyboardInterrupt:
-        print("\n[-] Seeding process interrupted by user")
+        print("\n[-] Process interrupted by user")
     except Exception as e:
         print(f"[-] Unexpected error: {e}")
     finally:
