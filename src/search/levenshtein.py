@@ -1,27 +1,32 @@
+import math
 from typing import List, Dict, Tuple
 from .fuzzysearch_protocol import FuzzySearchAlgorithm
 
 class LevenshteinSearch(FuzzySearchAlgorithm):
-    def __init__(self, threshold: int):
+    def __init__(self, tolerance: float):
         """
-        Build a fuzzy searcher using a fixed Levenshtein threshold.
+        Build a fuzzy searcher using a relative Levenshtein tolerance (0–1).
         """
-        self.threshold = threshold
+        if not 0 <= tolerance <= 1:
+            raise ValueError("Tolerance must be a float between 0 and 1.")
+        self.tolerance = tolerance
 
     def search_fuzzy(
         self,
         text: str,
         patterns: List[str],
-        threshold: int = None
+        tolerance: float = None
     ) -> Dict[str, List[Tuple[int, int]]]:
         """
         For each pattern, slide a window of length len(pattern) over text,
-        compute the full Levenshtein distance, and record matches <= threshold.
+        compute the full Levenshtein distance, and record matches <= tolerance.
         """
         from codecs import decode  # no extra deps
 
-        # use instance threshold if none passed explicitly
-        th = threshold if threshold is not None else self.threshold
+        # use instance tolerance if none passed explicitly
+        tol = tolerance if tolerance is not None else self.tolerance
+        if not 0 <= tol <= 1:
+            raise ValueError("Tolerance must be between 0 and 1.")
         results: Dict[str, List[Tuple[int, int]]] = {}
 
         for pat in patterns:
@@ -31,10 +36,11 @@ class LevenshteinSearch(FuzzySearchAlgorithm):
                 # empty pattern matches at every position with distance 0
                 matches = [(i, 0) for i in range(len(text) + 1)]
             else:
+                max_edits = math.ceil(m * tol)
                 for i in range(len(text) - m + 1):
                     window = text[i : i + m]
-                    d = self._levenshtein(window, pat, th)
-                    if d <= th:
+                    d = self._levenshtein(window, pat, max_edits)
+                    if d <= max_edits:
                         matches.append((i, d))
             results[pat] = matches
 

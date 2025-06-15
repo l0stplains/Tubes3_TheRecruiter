@@ -87,7 +87,7 @@ class SearchPage(QWidget):
         keywords        = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
         algo_name       = self.algoDropdown.currentText()      # "BM" or "KMP"
         max_match       = self.maxMatch.value()               # desired number of CVs
-        fuzzy_threshold = 3
+        fuzzy_tolerance = 0.2
         if not keywords or max_match <= 0:
             return
 
@@ -115,16 +115,21 @@ class SearchPage(QWidget):
 
         cv_results.sort(key=lambda r: r["exact_count"], reverse=True)
         exact_selected = cv_results[:max_match]
-        E = len([r for r in exact_selected if r["exact_count"] > 0])
+        exact_hits = [r for r in exact_selected if r["exact_count"] > 0]
+        E = len(exact_hits)
 
+        total_exact_scanned = len(exact_tasks) 
+        total_fuzzy_scanned = 0
         fuzzy_selected: List[Dict[str, Any]] = []
         if E < max_match:
-            # decide which CVs to fuzzy: those after the exact slice
-            remaining = cv_results[max_match:]
-            # prepare fuzzy tasks (index in 'remaining' list, text, keywords, threshold)
+            # candidates for fuzzy are any CV with exact_count==0
+            no_exact = [r for r in cv_results if r["exact_count"] == 0]
+            total_fuzzy_scanned = len(no_exact)
+
+            # prepare fuzzy tasks on no_exact...
             fuzzy_tasks = [
-                (i, res["text"], keywords, fuzzy_threshold)
-                for i, res in enumerate(remaining)
+                (idx, r["text"], keywords, fuzzy_tolerance)
+                for idx, r in enumerate(no_exact)
             ]
 
             t1 = time.time()
@@ -140,12 +145,12 @@ class SearchPage(QWidget):
 
             # merge fuzzy results back into 'remaining'
             for idx, fuzzy_raw in fuzzy_out:
-                remaining[idx]["fuzzy_raw"] = fuzzy_raw
+                no_exact[idx]["fuzzy_raw"] = fuzzy_raw
                 # total fuzzy matches count
-                remaining[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
+                no_exact[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
 
             # pick top (max_match - E) by fuzzy_count > 0
-            remaining = [r for r in remaining if r.get("fuzzy_count", 0) > 0]
+            remaining = [r for r in no_exact if r.get("fuzzy_count", 0) > 0]
             remaining.sort(key=lambda r: r["fuzzy_count"], reverse=True)
             slots = max_match - E
             fuzzy_selected = remaining[:slots]
@@ -174,9 +179,12 @@ class SearchPage(QWidget):
         print(f"Exact‐match time: {t_exact:.3f}s")
         print(f"Fuzzy‐match time: {t_fuzzy:.3f}s")
 
+        t_exact_ms = t_exact * 1000
+        t_fuzzy_ms = t_fuzzy * 1000
+
         # Show search summary
-        fuzzy_text = "" if t_fuzzy == 0.0 else f"| Fuzzy‐match time: {t_fuzzy:.3f}s "
-        self.summaryTime.setText(f"Exact‐match time: {t_exact:.3f}s {fuzzy_text}| Algorithm: {algo_name} | Results: {len(final_selection)}")
+        fuzzy_text = "" if t_fuzzy == 0.0 and total_fuzzy_scanned == 0 else f"| Fuzzy‐match: {total_fuzzy_scanned}CV{'s' if total_fuzzy_scanned > 1 else ''} scanned in {t_fuzzy_ms:.2f}ms "
+        self.summaryTime.setText(f"Exact‐match: {total_exact_scanned}CV{'s' if total_exact_scanned > 1 else ''} scanned in {t_exact_ms:.2f}ms {fuzzy_text}| Algorithm: {algo_name} | Results: {len(final_selection)}")
         self.searchSummary.show()
         
         # Clear previous results

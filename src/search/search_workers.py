@@ -48,7 +48,7 @@ def search_fuzzy_worker(
     idx: int,
     text: str,
     missing: List[str],
-    threshold: int
+    tolerance: float
 ) -> Tuple[int, Dict[str, List[Tuple[int,int]]]]:
     """
     Perform fuzzy-match (Levenshtein) on one CV’s missing keywords.
@@ -58,7 +58,7 @@ def search_fuzzy_worker(
     from src.search.searcher import KeywordSearcher
 
     # instantiate once per worker
-    fuzzy_algo = LevenshteinSearch(threshold=threshold)
+    fuzzy_algo = LevenshteinSearch(tolerance=tolerance)
     ks_fuzzy   = KeywordSearcher(fuzzy_algo, case_sensitive=False)
 
     if not missing:
