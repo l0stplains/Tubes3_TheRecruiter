@@ -1,4 +1,4 @@
-from src.search.boyer_moore import BoyerMooreSearch
+from src.search.kmp import KMPSearch
 from src.search.searcher import KeywordSearcher
 
 def run():
@@ -8,13 +8,13 @@ def run():
         "and even some repeated words: test, text, test."
         "and even multi word: Boyer-Moore search, wholeword"
     )
-    keywords = ["t", "text", "absent", "Boyer-Moore search", "whole", "wholeword"]
+    keywords = ["test", "text", "absent", "Boyer-Moore search", "whole", "wholeword"]
 
-    bm_algo = BoyerMooreSearch()
+    kmp_algo = KMPSearch()
 
     # wrap it in searcher
     searcher = KeywordSearcher(
-        algorithm=bm_algo,
+        algorithm=kmp_algo,
         case_sensitive=False,
         whole_word=True
     )
