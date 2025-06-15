@@ -48,7 +48,7 @@ class CVSummaryPage(QWidget):
             "phone": "+621111111"
         }
 
-        skills = ["React", "Express", "HTML"]
+        skills = ["React", "Express", "HTML", "Express", "HTML", "Express", "HTML", "Express", "HTML", "Express", "HTML"]
 
         jobs = [
             {
@@ -97,20 +97,30 @@ class CVSummaryPage(QWidget):
             # Set the layout to your summary parent widget
             
             # Skills section - HBox with pill-like styling
-            skills_layout = self.getOrCreateLayout(self.skillDesc, QHBoxLayout)
+            skills_layout = self.getOrCreateLayout(self.skillDesc, QVBoxLayout)
+
             
-            for skill in skills:
+            
+            for i, skill in enumerate(skills):
+                if i % 5 == 0:  # Start a new row every 4 items
+                    row_layout = QHBoxLayout()
+                    skills_layout.addLayout(row_layout)
+                
                 skill_label = QLabel(skill)
+                skill_label.setAlignment(Qt.AlignHCenter)
                 skill_label.setStyleSheet("""
                     QLabel {
-                        background-color: #d0d0d0;
-                        border-radius: 15px;
+                        border-radius: 10px;
                         padding: 8px 16px;
                         font-weight: bold;
-                        color: #333;
+                        color: #d9d9d9;
                     }
                 """)
-                skills_layout.addWidget(skill_label)
+                row_layout.addWidget(skill_label)
+
+            # Add stretch to the last row if it's not full
+            if len(skills) % 5 != 0:
+                row_layout.addStretch()
             
             # Add stretch to push skills to the left
             skills_layout.addStretch()

@@ -24,6 +24,7 @@ class CVViewerPage(QWidget):
     def loadPDF(self, applicationID):
         # fetch pdf path here
 
+        
         pdf_path = "C:/Users/Lenovo/Downloads/Kompilasi UAS Stima.pdf"
 
         if not hasattr(self, 'pdf_view') or self.pdf_view is None:
