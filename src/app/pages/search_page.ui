@@ -100,6 +100,16 @@ QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical {
     background: none;
 }
+
+QComboBox QAbstractItemView {
+    background-color: rgba(10,10,10,0.8);
+    color: #d9d9d9;
+    padding: 4px;
+    selection-background-color: rgba(20,20,20,0.8);
+    selection-color: #d9d9d9;
+    selection-border: 1px solid #d9d9d9;
+    border: 1px solid black;
+}
 </string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -356,6 +366,12 @@ QScrollBar::sub-page:vertical {
                         <property name="cursor">
                          <cursorShape>PointingHandCursor</cursorShape>
                         </property>
+                        <property name="styleSheet">
+                         <string notr="true">QComboBox::drop-down {
+
+}
+</string>
+                        </property>
                         <item>
                          <property name="text">
                           <string>KMP</string>
@@ -368,12 +384,7 @@ QScrollBar::sub-page:vertical {
                         </item>
                         <item>
                          <property name="text">
-                          <string>algo3</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>algo4</string>
+                          <string>AHO</string>
                          </property>
                         </item>
                        </widget>
