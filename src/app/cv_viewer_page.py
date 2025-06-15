@@ -5,6 +5,7 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QFont
 from PyQt5 import uic
 from PyQt5.QtWebEngineWidgets import QWebEngineView
+from src.db.models import db_manager 
 import os
 
 class CVViewerPage(QWidget):
@@ -21,11 +22,18 @@ class CVViewerPage(QWidget):
         else:
             raise Exception("failed to load ui")
 
-    def loadPDF(self, applicationID):
+    def loadPDF(self, tupleData):
+        applicantId, detailId = tupleData
         # fetch pdf path here
 
-        
-        pdf_path = "C:/Users/Lenovo/Downloads/Kompilasi UAS Stima.pdf"
+        applicant_data = db_manager.get_data_by_applicant_id(applicantId)['application_details']
+        pdf_path = ""
+        for data in applicant_data:
+            if data['detail_id'] == detailId:
+                pdf_path = data['cv_path']
+
+        # must be absolute jir
+        pdf_path = os.path.abspath(pdf_path)
 
         if not hasattr(self, 'pdf_view') or self.pdf_view is None:
             self.pdf_view = QWebEngineView()

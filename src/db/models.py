@@ -31,7 +31,7 @@ except ImportError:
     encrypt = None
     decrypt = None
 
-class DatabaseConnection:
+class _DatabaseConnection:
     def __init__(self) -> None:
         try:
             config = get_db_config()
@@ -89,8 +89,8 @@ class DatabaseConnection:
             print(f"[-] Unexpected query error: {e}")
             return None
 
-class AutoDecryptHelper:
-    def __init__(self, db_connection: DatabaseConnection) -> None:
+class _AutoDecryptHelper:
+    def __init__(self, db_connection: _DatabaseConnection) -> None:
         self.db = db_connection
         self.encryption_key: Optional[bytes] = None
         
@@ -167,8 +167,8 @@ class AutoDecryptHelper:
             'phone_number': self.smart_decrypt(str(profile['phone_number'])) if profile['phone_number'] else ''
         }
 
-class ApplicantProfile:
-    def __init__(self, db_connection: DatabaseConnection) -> None:
+class _ApplicantProfile:
+    def __init__(self, db_connection: _DatabaseConnection) -> None:
         self.db = db_connection
     
     def insert(self, data: Dict[str, Any]) -> Optional[int]:
@@ -202,8 +202,8 @@ class ApplicantProfile:
         query = "DELETE FROM ApplicantProfile WHERE applicant_id = %s"
         return self.db.execute_query(query, (applicant_id,))
 
-class ApplicationDetail:
-    def __init__(self, db_connection: DatabaseConnection) -> None:
+class _ApplicationDetail:
+    def __init__(self, db_connection: _DatabaseConnection) -> None:
         self.db = db_connection
     
     def insert(self, data: Dict[str, Any]) -> Optional[int]:
@@ -248,13 +248,13 @@ class ApplicationDetail:
         query = "DELETE FROM ApplicationDetail WHERE detail_id = %s"
         return self.db.execute_query(query, (detail_id,))
 
-class DatabaseManager:
+class _DatabaseManager:
     def __init__(self) -> None:
         try:
-            self.db_connection = DatabaseConnection()
-            self.applicant_profile: Optional[ApplicantProfile] = None
-            self.application_detail: Optional[ApplicationDetail] = None
-            self.auto_decrypt: Optional[AutoDecryptHelper] = None
+            self.db_connection = _DatabaseConnection()
+            self.applicant_profile: Optional[_ApplicantProfile] = None
+            self.application_detail: Optional[_ApplicationDetail] = None
+            self.auto_decrypt: Optional[_AutoDecryptHelper] = None
         except Exception as e:
             print(f"[-] Error initializing DatabaseManager: {e}")
             raise
@@ -264,9 +264,9 @@ class DatabaseManager:
             if not self.db_connection.connect():
                 return False
             
-            self.applicant_profile = ApplicantProfile(self.db_connection)
-            self.application_detail = ApplicationDetail(self.db_connection)
-            self.auto_decrypt = AutoDecryptHelper(self.db_connection)
+            self.applicant_profile = _ApplicantProfile(self.db_connection)
+            self.application_detail = _ApplicationDetail(self.db_connection)
+            self.auto_decrypt = _AutoDecryptHelper(self.db_connection)
             
             print("[+] Database initialized successfully")
             return True
@@ -773,3 +773,9 @@ class DatabaseManager:
             self.db_connection.disconnect()
         except Exception as e:
             print(f"[-] Error closing database: {e}")
+
+# Singleton instance:
+db_manager = _DatabaseManager()
+
+# Public API:
+__all__ = ["db_manager"]
