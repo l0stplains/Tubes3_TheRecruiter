@@ -37,13 +37,17 @@ class SearchPage(QWidget):
 
     
     def perform_search(self):
-        # Simulate search
-        query = self.searchBar.text()
-        if not query:
+        # get value from input
+        keywords = self.searchBar.text()
+        algo = self.algoDropdown.currentText()
+        maxMatch = self.maxMatch.value()
+        if not keywords or maxMatch <= 0:
             return
         
+        keywords = keywords.split(",")
+
         # Show search summary
-        self.summaryTime.setText(f"Search completed in 0.23s | Algorithm: {self.algoDropdown.currentText()} | Results: {len(query)}")
+        self.summaryTime.setText(f"Search completed in 0.23s | Algorithm: {algo} | Results: {len(keywords)}")
         self.searchSummary.show()
         
         # Clear previous results
