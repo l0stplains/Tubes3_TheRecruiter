@@ -286,7 +286,7 @@ class _DatabaseManager:
             
             profile_data = self.applicant_profile.get_by_id(applicant_id)
             if not profile_data:
-                return None
+                return Nonege
             
             if self.auto_decrypt:
                 applicant_profile = self.auto_decrypt.process_profile_data(profile_data)

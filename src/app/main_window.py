@@ -9,12 +9,16 @@ from src.app.search_page import SearchPage
 from src.app.cv_summary_page import CVSummaryPage
 from src.app.upload_page import UploadPage
 from src.app.cv_viewer_page import CVViewerPage
+from PyQt5.QtGui import QIcon, QPixmap
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("The Recruiter")
+        pixmap = QPixmap(":/images/app_icon.png")
+        print("NIGZZZ KENAPA GK BISA:", pixmap.isNull())
+        self.setWindowIcon(QIcon(":/images/app_icon.png"))
         self.setGeometry(100, 100, 800, 600)
         
         # Create stacked widget for navigation

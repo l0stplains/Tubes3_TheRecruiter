@@ -1,11 +1,12 @@
 from typing import List, Dict, Any, Tuple, Optional
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QGridLayout, QFrame)
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QMetaObject
 from PyQt5.QtGui import QFont
 from PyQt5 import uic
 from src.db.models import db_manager
 from src.search.boyer_moore import BoyerMooreSearch
+from src.search.kmp import KMPSearch
 from src.search.levenshtein import LevenshteinSearch
 from src.search.searcher import KeywordSearcher
 
@@ -24,44 +25,14 @@ import math
 class SearchPage(QWidget):
     result_selected = pyqtSignal(tuple)
     cv_selected = pyqtSignal(tuple)
+    search_completed = pyqtSignal(dict)
+    search_failed = pyqtSignal(str) 
     
     def __init__(self):
         super().__init__()
         self.load_ui()
         self.use_multiprocessing = True # for benchmarking
         self.setup_search_functionality()
-
-    def _search_single_cv(
-        self,
-        args: Any
-    ) -> Dict[str, Any]:
-        """
-        Worker function for Pool.map:
-         - args = (detail_dict, keywords, algo_name)
-        """
-        detail, keywords, algo_name = args
-        path = detail["cv_path"]
-
-        text = self.extractor.extract_single_pdf(path)["pattern_matching"]
-
-        if algo_name == "BM":
-            algo = BoyerMooreSearch()
-        else:
-            algo = KMPSearch()
-        ks_exact = KeywordSearcher(algo, case_sensitive=False, whole_word=False)
-        exact_raw = ks_exact.search(text, keywords)
-        exact_count = sum(len(v) for v in exact_raw.values())
-
-        missing = [kw for kw, positions in exact_raw.items() if not positions]
-
-        return {
-            "detail": detail,
-            "text": text,
-            "exact_raw": exact_raw,
-            "exact_count": exact_count,
-            "missing": missing
-        }
-
     
     def load_ui(self):
         # Load the UI file
@@ -84,20 +55,46 @@ class SearchPage(QWidget):
             self.searchSummary.hide()
 
     def perform_search(self):
-        keywords        = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
-        algo_name       = self.algoDropdown.currentText()      # "BM" or "KMP"
-        max_match       = self.maxMatch.value()               # desired number of CVs
-        fuzzy_threshold = 3
+        keywords = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
+        algo_name = self.algoDropdown.currentText()
+        max_match = self.maxMatch.value()
+        
         if not keywords or max_match <= 0:
             return
 
+        # disable button to prevent overlapping search
+        self.searchBtn.setEnabled(False)
+        self.searchBtn.setText("Searching...")
+        
+        if not hasattr(self, '_signals_connected'):
+            self.search_completed.connect(self.on_search_finished)
+            self.search_failed.connect(self.on_search_error)
+            self._signals_connected = True
+        
+        self.search_thread = QThread()
+        
+        # function that will run on the thread
+        def do_search():
+            try:
+                result = self._perform_search(keywords, algo_name, max_match)
+                self.search_completed.emit(result)
+            except Exception as e:
+                self.search_failed.emit(str(e))
+        
+        self.search_thread.finished.connect(self.search_thread.deleteLater)
+        self.search_thread.run = do_search
+        self.search_thread.start()
+
+    def _perform_search(self, keywords, algo_name, max_match):
+        fuzzy_threshold = 3
+        
         applicants = db_manager.get_all_applicants_data()
-        exact_tasks: List[Tuple[Dict[str,Any], List[str], str, str]] = []
+        exact_tasks = []
         for app in applicants:
             profile = app["applicant_profile"]
             for detail in app["application_details"]:
                 task_detail = {
-                    **detail,               # detail_id, application_role, cv_path
+                    **detail,
                     "applicant_profile": profile
                 }
                 exact_tasks.append((task_detail, keywords, algo_name, ""))
@@ -117,11 +114,9 @@ class SearchPage(QWidget):
         exact_selected = cv_results[:max_match]
         E = len([r for r in exact_selected if r["exact_count"] > 0])
 
-        fuzzy_selected: List[Dict[str, Any]] = []
+        fuzzy_selected = []
         if E < max_match:
-            # decide which CVs to fuzzy: those after the exact slice
             remaining = cv_results[max_match:]
-            # prepare fuzzy tasks (index in 'remaining' list, text, keywords, threshold)
             fuzzy_tasks = [
                 (i, res["text"], keywords, fuzzy_threshold)
                 for i, res in enumerate(remaining)
@@ -138,13 +133,10 @@ class SearchPage(QWidget):
                 ]
             t_fuzzy = time.time() - t1
 
-            # merge fuzzy results back into 'remaining'
             for idx, fuzzy_raw in fuzzy_out:
                 remaining[idx]["fuzzy_raw"] = fuzzy_raw
-                # total fuzzy matches count
                 remaining[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
 
-            # pick top (max_match - E) by fuzzy_count > 0
             remaining = [r for r in remaining if r.get("fuzzy_count", 0) > 0]
             remaining.sort(key=lambda r: r["fuzzy_count"], reverse=True)
             slots = max_match - E
@@ -158,7 +150,6 @@ class SearchPage(QWidget):
             res.setdefault("exact_count", 0)
 
         all_candidates = exact_selected + fuzzy_selected
-
         all_candidates = [
             r for r in all_candidates
             if (r["exact_count"] > 0) or (r["fuzzy_count"] > 0)
@@ -170,13 +161,32 @@ class SearchPage(QWidget):
         )
 
         final_selection = all_candidates[:max_match]
+        
+        # Return all the data needed for the UI update
+        return {
+            'final_selection': final_selection,
+            't_exact': t_exact,
+            't_fuzzy': t_fuzzy,
+            'algo_name': algo_name,
+            'result_count': len(final_selection)
+        }
+    
+    def on_search_finished(self, result):
+        # enable the button back
+        self.searchBtn.setEnabled(True)
+        self.searchBtn.setText("Search")
+        
+        final_selection = result['final_selection']
+        t_exact = result['t_exact']
+        t_fuzzy = result['t_fuzzy']
+        algo_name = result['algo_name']
+        result_count = result['result_count']
+        
+        print(f"Exact-match time: {t_exact:.3f}s")
+        print(f"Fuzzy-match time: {t_fuzzy:.3f}s")
 
-        print(f"Exact‐match time: {t_exact:.3f}s")
-        print(f"Fuzzy‐match time: {t_fuzzy:.3f}s")
-
-        # Show search summary
-        fuzzy_text = "" if t_fuzzy == 0.0 else f"| Fuzzy‐match time: {t_fuzzy:.3f}s "
-        self.summaryTime.setText(f"Exact‐match time: {t_exact:.3f}s {fuzzy_text}| Algorithm: {algo_name} | Results: {len(final_selection)}")
+        fuzzy_text = "" if t_fuzzy == 0.0 else f"| Fuzzy-match time: {t_fuzzy:.3f}s "
+        self.summaryTime.setText(f"Exact-match time: {t_exact:.3f}s {fuzzy_text}| Algorithm: {algo_name} | Results: {result_count}")
         self.searchSummary.show()
         
         # Clear previous results
@@ -185,10 +195,6 @@ class SearchPage(QWidget):
             if child:
                 child.setParent(None)
         
-        # HELLLO REFKI ATO GHANA
-        # INI DISINI ASUMSINYA BAKAL DAPET APPLICATION ID YAH
-        # BUAT DAPETIN DATA UNTUK CV SUMMARY NYA. OKEH THANKS
-        # Refki: DONE JIB
         cards = []
         for rank, res in enumerate(final_selection, 1):
             if res.get("fuzzy_raw"):
@@ -211,7 +217,6 @@ class SearchPage(QWidget):
             row_layout = QHBoxLayout()
             row_layout.setSpacing(10)
             
-            # Add cards to this row
             for col in range(cols):
                 card_index = row * cols + col
                 if card_index < len(cards):
@@ -219,17 +224,20 @@ class SearchPage(QWidget):
                 else:
                     break
             
-            # Add stretch to push cards to the left if row is not full
             row_layout.setAlignment(Qt.AlignHCenter)
-            
-            # Create a widget to hold the row layout
             row_widget = QWidget()
             row_widget.setLayout(row_layout)
             self.results_layout.addWidget(row_widget)
         
-        # Add stretch at the bottom
         self.results_layout.addStretch()
-    
+
+    def on_search_error(self, error_message):
+        # enable button again
+        self.searchBtn.setEnabled(True)
+        self.searchBtn.setText("Search")
+        
+        print(f"Search error: {error_message}")
+
     def create_result_card(self, title, description, matches, applicantId, detailId):
         card = QFrame()
         card.setFrameStyle(QFrame.Box)
@@ -340,11 +348,11 @@ class SearchPage(QWidget):
         Build a report string of matched keywords.
 
         Args:
-            exact_raw:   Mapping keyword -> list of exact‐match positions.
+            exact_raw:   Mapping keyword -> list of exact-match positions.
             fuzzy_raw:   (Optional) Mapping keyword -> list of fuzzy.
-                         If provided and non‐empty, fuzzy lines are appended.
+                         If provided and non-empty, fuzzy lines are appended.
         Returns:
-            A multi‐line string like:
+            A multi-line string like:
             
             Matched keywords:
             1. React: 1 occurrence
@@ -386,7 +394,7 @@ class SearchPage(QWidget):
         Count exact and fuzzy matches.
 
         Args:
-          exact_raw: mapping keyword -> list of exact‐match positions.
+          exact_raw: mapping keyword -> list of exact-match positions.
           fuzzy_raw: mapping keyword -> list of (pos, dist) for fuzzy matches (optional).
 
         Returns:

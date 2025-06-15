@@ -43,7 +43,7 @@ def search_fuzzy_worker(
     threshold: int
 ) -> Tuple[int, Dict[str, List[Tuple[int,int]]]]:
     """
-    Perform fuzzy-match (Levenshtein) on one CV’s missing keywords.
+    Perform fuzzy-match (Levenshtein) on one CV's missing keywords.
     Returns (original index, fuzzy_raw) so results can be merged back.
     """
     from src.search.levenshtein import LevenshteinSearch

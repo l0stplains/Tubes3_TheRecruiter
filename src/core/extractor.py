@@ -60,7 +60,10 @@ class PDFExtractor:
         text = re.sub(r'\.([A-Z])', r'. \1', text)
         text = re.sub(r'[ \t]+', ' ', text)
         text = re.sub(r' *\n *', '\n', text)
-        sections = ['Skills', 'Summary', 'Highlights', 'Accomplishments', 'Experience', 'Education', 'Projects']
+        sections = ['Skills', 'Summary', 'Highlights', 'Accomplishments', 'Experience', 
+                       'Education', 'Projects', 'Profile', 'Objective', 'About', 'Work Experience',
+                       'Technical Skills', 'Professional Experience', 'Career History', 'Employment',
+                       'Qualifications', 'Background', 'Training', 'Certifications']
         for section in sections:
             pattern1 = re.compile(f'({section.upper()}|{section})\\n([A-Z])')
             text = pattern1.sub(r'\1\n\n\2', text)
