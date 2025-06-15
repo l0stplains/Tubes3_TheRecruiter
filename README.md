@@ -2,7 +2,7 @@
 
 > Tugas Besar 3 - IF2211 Strategi Algoritma 2025
 <p align="center">
-    <img src="https://github.com/user-attachments/assets/7b2a1bda-2355-42bf-9967-07e4b19936a0">
+    <img src="./doc/TheRecruiterBanner.png">
 </p>
     <h3 align="center">The Recruiter</h3>
 <p align="center">
@@ -11,7 +11,7 @@
     <br />
     <a href="https://github.com/l0stplains/Tubes3_TheRecruiter/releases/">Releases</a>
     ·
-    <a href="./docs/">Project Report & Specification (Bahasa Indonesia)</a>
+    <a href="./doc/TheRecruiter.pdf">Project Report & Specification (Bahasa Indonesia)</a>
 </p>
 
 ## Table of Contents <a name="table-of-contents"></a>
@@ -73,7 +73,40 @@
 ---
 
 ## Algorithms <a name="algorithms"></a>
-<div align="right">(<a href="#table-of-contents">back to top</a>)</div>  
+<div align="right">(<a href="#table-of-contents">back to top</a>)</div>
+
+Our CV parser provides three exact string‑matching techniques, a fuzzy matcher for typo‑tolerance, and targeted regex extraction.
+
+### Pattern Matching  
+We support three classic exact‐match algorithms:
+
+- **Knuth–Morris–Pratt (KMP)**  
+  Builds a “failure” (LPS) table in $O(m)$ for pattern length *m*, then scans the text of length *n* in $O(n)$ without ever backtracking, yielding $O(n+m)$ worst‑case time and O(m) extra space.
+
+- **Boyer–Moore (BM)**  
+  Compares from the pattern’s right end using  Last Occurrence Function to skip ahead. On random text, average time is $Θ(n/m)$, with worst‑case $O(nm+A)$ ($A$=alphabet size), and $O(m + A)$ space.
+
+- **Aho–Corasick (AC)**  
+  Builds a trie plus failure links over all patterns (total length M) in $O(M)$, then finds all matches in one pass in $O(n + z)$ ($z$ = matches found), using $O(M)$ space.
+
+| Algorithm        | Time Complexity      | Space Complexity  | Key Traits                                  |
+| ---------------- | -------------------- | ----------------- | ------------------------------------------- |
+| **KMP**          | $O(n+m)$             | $O(m)$              | Predictable linear scan, no backtracking    |
+| **Boyer–Moore**  | $Θ(n/m)$ avg, $O(nm)$ wc | $O(m+A)$          | Large jumps on mismatch, very fast in practice |
+| **Aho–Corasick** | $O(n + z)$             | $O(Σmᵢ)$            | Multi‑pattern in one scan, ideal for many keywords |
+
+### Fuzzy Matching  
+To catch typos and small variations, we use **Levenshtein Distance**, which counts insertions, deletions, and substitutions between each pattern (length *m*) and every substring of the same length in the text. We also implement early pruning: if the current row’s minimum edit distance already exceeds our allowed maximum, we abort that comparison to save time.
+
+We define a **relative tolerance** \(T = 0.2\). For a pattern of length *m*, the maximum allowed edits is:
+
+
+$\frac{\mathrm{Levenshtein}(a, b)}{\max(\lvert a\rvert, \lvert b\rvert)} \;\le\; T$
+
+By choosing T = 0.2 (based on experiment i.e. trial and error hehe), we allow up to 20 % of the pattern to differ-enough to catch common typos while keeping false positives low. This scaling rule naturally adapts across both short and long keywords.
+
+### Regular Expression (Regex)  
+Regex is used to pinpoint structured sections of the CV-like “Summary,” “Skills,” “Work Experience” (dates & titles), “Education” (graduation year, institution, degree), etc.
 
 --- 
 
@@ -155,3 +188,4 @@
 > If you are planning to develop, you must set your system python to use version 3.8 and install pyqt5-tools
 
 ---
+
