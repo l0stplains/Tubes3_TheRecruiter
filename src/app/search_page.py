@@ -55,10 +55,9 @@ class SearchPage(QWidget):
             self.searchSummary.hide()
 
     def perform_search(self):
-        keywords = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
-        algo_name = self.algoDropdown.currentText()
-        max_match = self.maxMatch.value()
-        
+        keywords        = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
+        algo_name       = self.algoDropdown.currentText()      # "BM" or "KMP"
+        max_match       = self.maxMatch.value()               # desired number of CVs
         if not keywords or max_match <= 0:
             return
 
@@ -86,6 +85,7 @@ class SearchPage(QWidget):
         self.search_thread.start()
 
     def _perform_search(self, keywords, algo_name, max_match):
+        fuzzy_tolerance = 0.2
         fuzzy_threshold = 3
         
         applicants = db_manager.get_all_applicants_data()
@@ -112,14 +112,21 @@ class SearchPage(QWidget):
 
         cv_results.sort(key=lambda r: r["exact_count"], reverse=True)
         exact_selected = cv_results[:max_match]
-        E = len([r for r in exact_selected if r["exact_count"] > 0])
+        exact_hits = [r for r in exact_selected if r["exact_count"] > 0]
+        E = len(exact_hits)
 
-        fuzzy_selected = []
+        total_exact_scanned = len(exact_tasks) 
+        total_fuzzy_scanned = 0
+        fuzzy_selected: List[Dict[str, Any]] = []
         if E < max_match:
-            remaining = cv_results[max_match:]
+            # candidates for fuzzy are any CV with exact_count==0
+            no_exact = [r for r in cv_results if r["exact_count"] == 0]
+            total_fuzzy_scanned = len(no_exact)
+
+            # prepare fuzzy tasks on no_exact...
             fuzzy_tasks = [
-                (i, res["text"], keywords, fuzzy_threshold)
-                for i, res in enumerate(remaining)
+                (idx, r["text"], keywords, fuzzy_tolerance)
+                for idx, r in enumerate(no_exact)
             ]
 
             t1 = time.time()
@@ -134,10 +141,12 @@ class SearchPage(QWidget):
             t_fuzzy = time.time() - t1
 
             for idx, fuzzy_raw in fuzzy_out:
-                remaining[idx]["fuzzy_raw"] = fuzzy_raw
-                remaining[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
+                no_exact[idx]["fuzzy_raw"] = fuzzy_raw
+                # total fuzzy matches count
+                no_exact[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
 
-            remaining = [r for r in remaining if r.get("fuzzy_count", 0) > 0]
+            # pick top (max_match - E) by fuzzy_count > 0
+            remaining = [r for r in no_exact if r.get("fuzzy_count", 0) > 0]
             remaining.sort(key=lambda r: r["fuzzy_count"], reverse=True)
             slots = max_match - E
             fuzzy_selected = remaining[:slots]
@@ -168,7 +177,9 @@ class SearchPage(QWidget):
             't_exact': t_exact,
             't_fuzzy': t_fuzzy,
             'algo_name': algo_name,
-            'result_count': len(final_selection)
+            'result_count': len(final_selection),
+            'total_exact_scanned': total_exact_scanned,
+            'total_fuzzy_scanned': total_fuzzy_scanned
         }
     
     def on_search_finished(self, result):
@@ -185,8 +196,12 @@ class SearchPage(QWidget):
         print(f"Exact-match time: {t_exact:.3f}s")
         print(f"Fuzzy-match time: {t_fuzzy:.3f}s")
 
-        fuzzy_text = "" if t_fuzzy == 0.0 else f"| Fuzzy-match time: {t_fuzzy:.3f}s "
-        self.summaryTime.setText(f"Exact-match time: {t_exact:.3f}s {fuzzy_text}| Algorithm: {algo_name} | Results: {result_count}")
+        t_exact_ms = t_exact * 1000
+        t_fuzzy_ms = t_fuzzy * 1000
+
+        # Show search summary
+        fuzzy_text = "" if t_fuzzy == 0.0 and result['total_fuzzy_scanned'] == 0 else f"| Fuzzy‐match: {result['total_fuzzy_scanned']}CV{'s' if result['total_fuzzy_scanned'] > 1 else ''} scanned in {t_fuzzy_ms:.2f}ms "
+        self.summaryTime.setText(f"Exact‐match: {result['total_exact_scanned']}CV{'s' if result['total_exact_scanned'] > 1 else ''} scanned in {t_exact_ms:.2f}ms {fuzzy_text}| Algorithm: {algo_name} | Results: {len(final_selection)}")
         self.searchSummary.show()
         
         # Clear previous results

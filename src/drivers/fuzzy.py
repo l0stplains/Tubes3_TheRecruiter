@@ -12,7 +12,7 @@ def run():
     print(ks_exact.search(text, keywords))
 
     # fuzzy‑match
-    fuzzy_algo = LevenshteinSearch(threshold=2)
+    fuzzy_algo = LevenshteinSearch(tolerance=0.2)
     ks_fuzzy   = KeywordSearcher(fuzzy_algo)
     print(ks_fuzzy.search(text, keywords))
 
