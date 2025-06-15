@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt
 from src.app.main_menu import MainMenuPage
 from src.app.search_page import SearchPage
 from src.app.cv_summary_page import CVSummaryPage
-from src.app.upload_page import UploadPage
+from src.app.about_page import AboutPage
 from src.app.cv_viewer_page import CVViewerPage
 from PyQt5.QtGui import QIcon, QPixmap
 
@@ -28,13 +28,13 @@ class MainWindow(QMainWindow):
         self.search_page = SearchPage()
         self.cv_summary_page = CVSummaryPage()
         self.cv_viewer_page = CVViewerPage()
-        self.add_data_page = UploadPage()
+        self.about_page = AboutPage()
         
         # Add pages to stacked widget
         self.stacked_widget.addWidget(self.main_menu)
         self.stacked_widget.addWidget(self.search_page)
         self.stacked_widget.addWidget(self.cv_summary_page)
-        self.stacked_widget.addWidget(self.add_data_page)
+        self.stacked_widget.addWidget(self.about_page)
         self.stacked_widget.addWidget(self.cv_viewer_page)
         
         # Connect navigation signals
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
     def setup_navigation(self):
         # Main menu navigation
         self.main_menu.search_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.search_page))
-        self.main_menu.add_data_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.add_data_page))
+        self.main_menu.add_data_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.about_page))
         self.main_menu.exit_btn.clicked.connect(lambda: exit(0))
 
         # Search page navigation
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self.cv_viewer_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.search_page))
         
         # Add data navigatio
-        self.add_data_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_menu))
+        self.about_page.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_menu))
 
 
 
