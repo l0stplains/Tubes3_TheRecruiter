@@ -16,8 +16,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("The Recruiter")
-        pixmap = QPixmap(":/images/app_icon.png")
-        print("NIGZZZ KENAPA GK BISA:", pixmap.isNull())
         self.setWindowIcon(QIcon(":/images/app_icon.png"))
         self.setGeometry(100, 100, 800, 600)
         

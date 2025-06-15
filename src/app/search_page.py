@@ -192,9 +192,6 @@ class SearchPage(QWidget):
         t_fuzzy = result['t_fuzzy']
         algo_name = result['algo_name']
         result_count = result['result_count']
-        
-        print(f"Exact-match time: {t_exact:.3f}s")
-        print(f"Fuzzy-match time: {t_fuzzy:.3f}s")
 
         t_exact_ms = t_exact * 1000
         t_fuzzy_ms = t_fuzzy * 1000

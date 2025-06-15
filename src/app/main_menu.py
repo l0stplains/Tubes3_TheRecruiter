@@ -17,8 +17,6 @@ class MainMenuPage(QWidget):
             print("[-] Failed to initialize database")
             sys.exit()
 
-        print(db_manager.get_all_applicants_data()[0])
-
     
     def load_ui(self):
         # Load the UI file
