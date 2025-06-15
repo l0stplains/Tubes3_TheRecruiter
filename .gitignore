@@ -10,3 +10,6 @@ data/*
 
 # Virtual environments
 .venv
+
+# Secret ho ho ho
+.env

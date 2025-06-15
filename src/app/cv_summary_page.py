@@ -37,7 +37,8 @@ class CVSummaryPage(QWidget):
             widget.setLayout(new_layout)
             return new_layout
 
-    def populateContent(self, applicationID):
+    def populateContent(self, tupleData):
+        applicantId, detailId = tuppleData
         # fetch data here idk how bruh
 
         # contoh data
@@ -77,7 +78,7 @@ class CVSummaryPage(QWidget):
         ]
 
         # ntar ubah aj ato gmn kek
-        if applicationID == "ubah ini ki":  
+        if applicantId == "ubah ini ki":  
             
             # Summary section
             self.summaryTitle.setText(summary["Name"])

@@ -1,19 +1,67 @@
+from typing import List, Dict, Any, Tuple, Optional
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QGridLayout, QFrame)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5 import uic
+from src.db.models import db_manager
+from src.search.boyer_moore import BoyerMooreSearch
+from src.search.levenshtein import LevenshteinSearch
+from src.search.searcher import KeywordSearcher
+
+import os, time
+from multiprocessing import Pool
+from src.search.search_workers import (
+    search_exact_worker,
+    search_fuzzy_worker
+)
+
+import time
+from multiprocessing import Pool
 import os
 import math
 
 class SearchPage(QWidget):
-    result_selected = pyqtSignal(str)
-    cv_selected = pyqtSignal(str)
+    result_selected = pyqtSignal(tuple)
+    cv_selected = pyqtSignal(tuple)
     
     def __init__(self):
         super().__init__()
         self.load_ui()
+        self.use_multiprocessing = True # for benchmarking
         self.setup_search_functionality()
+
+    def _search_single_cv(
+        self,
+        args: Any
+    ) -> Dict[str, Any]:
+        """
+        Worker function for Pool.map:
+         - args = (detail_dict, keywords, algo_name)
+        """
+        detail, keywords, algo_name = args
+        path = detail["cv_path"]
+
+        text = self.extractor.extract_single_pdf(path)["pattern_matching"]
+
+        if algo_name == "BM":
+            algo = BoyerMooreSearch()
+        else:
+            algo = KMPSearch()
+        ks_exact = KeywordSearcher(algo, case_sensitive=False, whole_word=False)
+        exact_raw = ks_exact.search(text, keywords)
+        exact_count = sum(len(v) for v in exact_raw.values())
+
+        missing = [kw for kw, positions in exact_raw.items() if not positions]
+
+        return {
+            "detail": detail,
+            "text": text,
+            "exact_raw": exact_raw,
+            "exact_count": exact_count,
+            "missing": missing
+        }
+
     
     def load_ui(self):
         # Load the UI file
@@ -35,19 +83,100 @@ class SearchPage(QWidget):
             # Initially hide search summary
             self.searchSummary.hide()
 
-    
     def perform_search(self):
-        # get value from input
-        keywords = self.searchBar.text()
-        algo = self.algoDropdown.currentText()
-        maxMatch = self.maxMatch.value()
-        if not keywords or maxMatch <= 0:
+        keywords        = [kw.strip() for kw in self.searchBar.text().split(",") if kw.strip()]
+        algo_name       = self.algoDropdown.currentText()      # "BM" or "KMP"
+        max_match       = self.maxMatch.value()               # desired number of CVs
+        fuzzy_threshold = 3
+        if not keywords or max_match <= 0:
             return
-        
-        keywords = keywords.split(",")
+
+        applicants = db_manager.get_all_applicants_data()
+        exact_tasks: List[Tuple[Dict[str,Any], List[str], str, str]] = []
+        for app in applicants:
+            profile = app["applicant_profile"]
+            for detail in app["application_details"]:
+                task_detail = {
+                    **detail,               # detail_id, application_role, cv_path
+                    "applicant_profile": profile
+                }
+                exact_tasks.append((task_detail, keywords, algo_name, ""))
+
+        t0 = time.time()
+        if self.use_multiprocessing:
+            with Pool(os.cpu_count()) as pool:
+                cv_results = pool.starmap(search_exact_worker, exact_tasks)
+        else:
+            cv_results = [
+                search_exact_worker(*args)
+                for args in exact_tasks
+            ]
+        t_exact = time.time() - t0
+
+        cv_results.sort(key=lambda r: r["exact_count"], reverse=True)
+        exact_selected = cv_results[:max_match]
+        E = len([r for r in exact_selected if r["exact_count"] > 0])
+
+        fuzzy_selected: List[Dict[str, Any]] = []
+        if E < max_match:
+            # decide which CVs to fuzzy: those after the exact slice
+            remaining = cv_results[max_match:]
+            # prepare fuzzy tasks (index in 'remaining' list, text, keywords, threshold)
+            fuzzy_tasks = [
+                (i, res["text"], keywords, fuzzy_threshold)
+                for i, res in enumerate(remaining)
+            ]
+
+            t1 = time.time()
+            if self.use_multiprocessing:
+                with Pool(os.cpu_count()) as pool:
+                    fuzzy_out = pool.starmap(search_fuzzy_worker, fuzzy_tasks)
+            else:
+                fuzzy_out = [
+                    search_fuzzy_worker(*args)
+                    for args in fuzzy_tasks
+                ]
+            t_fuzzy = time.time() - t1
+
+            # merge fuzzy results back into 'remaining'
+            for idx, fuzzy_raw in fuzzy_out:
+                remaining[idx]["fuzzy_raw"] = fuzzy_raw
+                # total fuzzy matches count
+                remaining[idx]["fuzzy_count"] = sum(len(v) for v in fuzzy_raw.values())
+
+            # pick top (max_match - E) by fuzzy_count > 0
+            remaining = [r for r in remaining if r.get("fuzzy_count", 0) > 0]
+            remaining.sort(key=lambda r: r["fuzzy_count"], reverse=True)
+            slots = max_match - E
+            fuzzy_selected = remaining[:slots]
+        else:
+            t_fuzzy = 0.0
+
+        for res in exact_selected:
+            res.setdefault("fuzzy_count", 0)
+        for res in fuzzy_selected:
+            res.setdefault("exact_count", 0)
+
+        all_candidates = exact_selected + fuzzy_selected
+
+        all_candidates = [
+            r for r in all_candidates
+            if (r["exact_count"] > 0) or (r["fuzzy_count"] > 0)
+        ]
+
+        all_candidates.sort(
+            key=lambda r: (r["exact_count"], r["fuzzy_count"]),
+            reverse=True
+        )
+
+        final_selection = all_candidates[:max_match]
+
+        print(f"Exact‐match time: {t_exact:.3f}s")
+        print(f"Fuzzy‐match time: {t_fuzzy:.3f}s")
 
         # Show search summary
-        self.summaryTime.setText(f"Search completed in 0.23s | Algorithm: {algo} | Results: {len(keywords)}")
+        fuzzy_text = "" if t_fuzzy == 0.0 else f"| Fuzzy‐match time: {t_fuzzy:.3f}s "
+        self.summaryTime.setText(f"Exact‐match time: {t_exact:.3f}s {fuzzy_text}| Algorithm: {algo_name} | Results: {len(final_selection)}")
         self.searchSummary.show()
         
         # Clear previous results
@@ -56,24 +185,25 @@ class SearchPage(QWidget):
             if child:
                 child.setParent(None)
         
-        # Add sample results
-        sample_results = [
-            ("Document Analysis Report", "Comprehensive analysis\n of document proc\nessing techniques..."),
-            ("Search Algorithm Comparison", "Detailed comparison of \ndifferent search al\ngorithms..."),
-            ("Data Mining Techniques", "Overview of modern data mining \nand extracti\non methods..."),
-            ("Information Retrieval Systems", "Study of information \nretrieval and ran\nking systems..."),
-        ]
-        
         # HELLLO REFKI ATO GHANA
         # INI DISINI ASUMSINYA BAKAL DAPET APPLICATION ID YAH
         # BUAT DAPETIN DATA UNTUK CV SUMMARY NYA. OKEH THANKS
+        # Refki: DONE JIB
         cards = []
-        for title, desc in sample_results:
-            card = self.create_result_card(title, desc, "1", "ubah ini ki")
+        for rank, res in enumerate(final_selection, 1):
+            if res.get("fuzzy_raw"):
+                desc = self.format_keyword_report(res['exact_raw'], res['fuzzy_raw'])
+                total = self.count_occurrences(res['exact_raw'], res['fuzzy_raw'])
+            else:
+                desc = self.format_keyword_report(res['exact_raw'])
+                total = self.count_occurrences(res['exact_raw'])
+            count = total['total_exact'] + total['total_fuzzy']
+            profile = res['detail']['applicant_profile']
+            card = self.create_result_card(f"{profile['first_name']} {profile['last_name']}", desc, str(count), profile['applicant_id'], res['detail']['detail_id'])
             card.setMinimumWidth(100)
             card.setMaximumWidth(250)
             cards.append(card)
-        
+
         cols = 3
         rows = math.ceil(len(cards) / cols)
 
@@ -100,7 +230,7 @@ class SearchPage(QWidget):
         # Add stretch at the bottom
         self.results_layout.addStretch()
     
-    def create_result_card(self, title, description, matches, applicationID):
+    def create_result_card(self, title, description, matches, applicantId, detailId):
         card = QFrame()
         card.setFrameStyle(QFrame.Box)
         card.setStyleSheet("""
@@ -171,7 +301,7 @@ class SearchPage(QWidget):
                 background-color: #636363;
             }
         """)
-        summary_btn.clicked.connect(lambda: self.result_selected.emit(applicationID))
+        summary_btn.clicked.connect(lambda: self.result_selected.emit((applicantId, detailId)))
         summary_btn.setCursor(Qt.PointingHandCursor)
         btn_layout.addWidget(summary_btn)
         
@@ -190,7 +320,7 @@ class SearchPage(QWidget):
             }
         """)
         view_btn.setCursor(Qt.PointingHandCursor)
-        view_btn.clicked.connect(lambda: self.cv_selected.emit(applicationID))
+        view_btn.clicked.connect(lambda: self.cv_selected.emit((applicantId, detailId)))
         btn_layout.addWidget(view_btn)
         
         layout.addLayout(btn_layout)
@@ -200,3 +330,88 @@ class SearchPage(QWidget):
     @property
     def back_btn(self):
         return self.backBtn
+
+    def format_keyword_report(
+        self,
+        exact_raw: Dict[str, List[int]],
+        fuzzy_raw: Dict[str, List[Tuple[int,int]]] = None
+    ) -> str:
+        """
+        Build a report string of matched keywords.
+
+        Args:
+            exact_raw:   Mapping keyword -> list of exact‐match positions.
+            fuzzy_raw:   (Optional) Mapping keyword -> list of fuzzy.
+                         If provided and non‐empty, fuzzy lines are appended.
+        Returns:
+            A multi‐line string like:
+            
+            Matched keywords:
+            1. React: 1 occurrence
+            2. Express: 2 occurrences
+            ...
+            Fuzzy keywords:
+            1. Nodejs: 1 fuzzy occurrence
+            ...
+        """
+        lines = ["Matched keywords:"]
+
+        # Exact matches first
+        for i, (kw, poses) in enumerate(exact_raw.items(), start=1):
+            count = len(poses)
+            if count > 0:
+                occ = "occurrence" if count == 1 else "occurrences"
+                lines.append(f"{i}. {kw}: {count} {occ}")
+
+        # Fuzzy matches, if any
+        if fuzzy_raw:
+            # filter to only those with at least one fuzzy hit
+            fuzzy_hits = {kw: hits for kw, hits in fuzzy_raw.items() if hits}
+            if fuzzy_hits:
+                lines.append("")  # blank line
+                lines.append("Fuzzy matches:")
+                for i, (kw, hits) in enumerate(fuzzy_hits.items(), start=1):
+                    count = len(hits)
+                    occ = "fuzzy occurrence" if count == 1 else "fuzzy occurrences"
+                    lines.append(f"{i}. {kw}: {count} {occ}")
+
+        return "\n".join(lines)
+
+    def count_occurrences(
+        self,
+        exact_raw: Dict[str, List[int]],
+        fuzzy_raw: Optional[Dict[str, List[Tuple[int,int]]]] = None
+    ) -> Dict[str, object]:
+        """
+        Count exact and fuzzy matches.
+
+        Args:
+          exact_raw: mapping keyword -> list of exact‐match positions.
+          fuzzy_raw: mapping keyword -> list of (pos, dist) for fuzzy matches (optional).
+
+        Returns:
+          A dict containing:
+            - exact_counts: Dict[keyword, int]
+            - total_exact: int
+            - fuzzy_counts: Dict[keyword, int]
+            - total_fuzzy: int
+        """
+        # per‑keyword exact counts
+        exact_counts = {kw: len(pos_list) for kw, pos_list in exact_raw.items()}
+        total_exact  = sum(exact_counts.values())
+
+        # per‑keyword fuzzy counts (if provided)
+        if fuzzy_raw is not None:
+            fuzzy_counts = {kw: len(hits) for kw, hits in fuzzy_raw.items()}
+            total_fuzzy  = sum(fuzzy_counts.values())
+        else:
+            fuzzy_counts = {}
+            total_fuzzy  = 0
+
+        return {
+            "total_exact": total_exact,
+            "total_fuzzy": total_fuzzy
+        }
+
+
+

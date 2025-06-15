@@ -31,7 +31,7 @@ class PDFExtractor:
             except Exception as e:
                 print(f"[-] Could not create data folder: {e}")
             return
-        print(f"[+] PDF Extractor initialized with data folder: {self.data_folder}")
+        # print(f"[+] PDF Extractor initialized with data folder: {self.data_folder}")
 
     def extract_text_from_pdf(self, pdf_path: Path) -> str:
             """Extract raw text from PDF file"""
@@ -78,7 +78,7 @@ class PDFExtractor:
 
     def extract_single_pdf(self, pdf_path: Path) -> Dict[str, str]:
         """Extract text from a single PDF in both formats, ensuring ASCII-only characters."""
-        print(f"[*] Processing: {pdf_path.name}")
+        # print(f"[*] Processing: {pdf_path.name}")
         raw_text = self.extract_text_from_pdf(pdf_path)
         if not raw_text:
             print(f"[-] No text extracted from {pdf_path.name}")
